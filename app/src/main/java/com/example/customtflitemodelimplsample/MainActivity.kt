@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Bundle
+import android.os.SystemClock
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
@@ -39,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val t0 = SystemClock.elapsedRealtime()
         // Create interpreter and load model
         createInterpreter()
         // Load bitmap from assets
@@ -48,6 +50,7 @@ class MainActivity : AppCompatActivity() {
         val inferenceResult = runInference(bitmap)
         // Convert output byte buffer array to image
         val image = convertOutputArrayToImage(inferenceResult)
+        val t3 = SystemClock.elapsedRealtime()
         displayResultImage(image)
     }
 
@@ -97,7 +100,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val byteBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
+        val t1 = SystemClock.elapsedRealtime()
         interpreter?.run(byteBuffer, outputArr)
+        val t2 = SystemClock.elapsedRealtime()
         return outputArr
     }
 
@@ -168,4 +173,16 @@ class MainActivity : AppCompatActivity() {
  * 	•	Avoid creating new Bitmap every inference if possible
  * 	•	Pre-scale image once
  * 	•	Use setPixels() exactly as you already do (good)
+ */
+
+/**
+ * Performance measurements:
+ * Step 1: Identifying the parts and segregating
+ *  A. Preprocessing  (Bitmap → ByteBuffer)
+ *  B. Inference      (interpreter.run)
+ *  C. Postprocessing (Output → Bitmap)
+ *
+ * Step 2: Basic time logging between the above major steps
+ *
+ *
  */
