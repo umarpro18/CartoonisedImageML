@@ -154,3 +154,18 @@ class MainActivity : AppCompatActivity() {
         const val TFLITE_MODEL_NAME = "lite_model_cartoongan.tflite"
     }
 }
+
+/**
+ * Improvements to consider:
+ *
+ * High-impact fixes (do these first)
+ * 	1.	Replace bitmap[x, y] with getPixels()
+ * 	2.	Reuse ByteBuffer, IntArray, output arrays
+ * 	3.	Move inference off the main thread
+ * 	4.	Fix output normalization correctness
+ *
+ * Medium-impact improvements
+ * 	•	Avoid creating new Bitmap every inference if possible
+ * 	•	Pre-scale image once
+ * 	•	Use setPixels() exactly as you already do (good)
+ */
