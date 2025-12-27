@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
+import android.util.Log
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
@@ -16,6 +17,7 @@ import org.tensorflow.lite.support.common.FileUtil
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.time.Instant.now
 
 
 /**
@@ -40,17 +42,30 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val t0 = SystemClock.elapsedRealtime()
+
         // Create interpreter and load model
         createInterpreter()
+
         // Load bitmap from assets
         val bitmap = loadBitmapFromAsset()
         findViewById<ImageView>(R.id.originalImage).setImageBitmap(bitmap)
-        // Run inference by converting bitmap into bytebuffer
-        val inferenceResult = runInference(bitmap)
-        // Convert output byte buffer array to image
+
+        // Preprocessing: Converting bitmap into bytebuffer
+        val t0 = SystemClock.elapsedRealtime()
+        val byteBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
+        val t1 = SystemClock.elapsedRealtime()
+        Log.d("MainActivity", "Preprocessing time = ${t1 - t0}")
+
+        // Run inference
+        val inferenceResult = runInference(byteBuffer)
+        val t2 = SystemClock.elapsedRealtime()
+        Log.d("MainActivity", "Inference time = ${t2 - t1}")
+
+        // Postprocessing: Convert output byte buffer array to image
         val image = convertOutputArrayToImage(inferenceResult)
         val t3 = SystemClock.elapsedRealtime()
+        Log.d("MainActivity", "Postprocessing time = ${t3 - t2}")
+
         displayResultImage(image)
     }
 
@@ -91,7 +106,7 @@ class MainActivity : AppCompatActivity() {
         return bitmap.scale(224, 224, false)
     }
 
-    private fun runInference(bitmap: Bitmap): Array<Array<Array<FloatArray>>> {
+    private fun runInference(byteBuffer: ByteBuffer): Array<Array<Array<FloatArray>>> {
         val outputArr = Array(1) {
             Array(224) {
                 Array(224) {
@@ -99,10 +114,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        val byteBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
-        val t1 = SystemClock.elapsedRealtime()
         interpreter?.run(byteBuffer, outputArr)
-        val t2 = SystemClock.elapsedRealtime()
         return outputArr
     }
 
@@ -183,6 +195,18 @@ class MainActivity : AppCompatActivity() {
  *  C. Postprocessing (Output → Bitmap)
  *
  * Step 2: Basic time logging between the above major steps
- *
+ * Result:
+ *  Preprocessing ≈ 22 ms
+ *  Inference     ≈ 225 ms
+ *  Postprocessing ≈ 2 ms
+ *  Total: 250 ms approx.
+ * Conclusion:
+ *  We conclude that the inference takes up 90% of the time
+ *  We see frames are skipped due to all three steps are blocking ui thread (250ms lost), so it skipped 16 frames approx.
+ *  -> 16.6 ms per frame android usually draws (60 fps common)
+ *  Now we confirm the above inference time to correlate CPU profiler time.
+ *      Interpreter.run() jumps into native C++
+ * 	    CPU Profiler (Java/Kotlin) can’t see inside ML kernels
+ * 	    It shows up as one big native block (screen shots uploaded)
  *
  */
