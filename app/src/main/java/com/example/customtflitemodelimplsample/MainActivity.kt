@@ -208,5 +208,15 @@ class MainActivity : AppCompatActivity() {
  *      Interpreter.run() jumps into native C++
  * 	    CPU Profiler (Java/Kotlin) can’t see inside ML kernels
  * 	    It shows up as one big native block (screen shots uploaded)
+ * 	    Result: (It correlates with manual timing with cpu 260ms approx.)
+ * 	    Why you could not able to see ML stuffs at cpu profiler
+ * 	    	•	Interpreter.run() jumps into native C++
+ * 	        •	CPU Profiler (Java/Kotlin) can’t see inside ML kernels
+ * 	        •	It shows up as one big native block
+ * 	    Next steps:
+ * 	        Off load inference running to bg thread (AsyncTask)
+ * 	        Try GPu delegates
+ *
+ *  Step 3: To be continued...
  *
  */
