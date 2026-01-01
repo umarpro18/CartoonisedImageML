@@ -242,3 +242,14 @@ class MainActivity : AppCompatActivity() {
  *
  *
  */
+
+/**
+ * MobileNet metadata:
+ * Input
+ * 1. [1, 224, 224, 3]
+ * 2. Type: Float32
+ * 3. Normalization [0.0 - 1.0] (divide by 255.0) since no operator present
+ *
+ * Output
+ * 1. [1 - 1001] class score
+ */
