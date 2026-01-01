@@ -17,7 +17,8 @@ import org.tensorflow.lite.support.common.FileUtil
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.time.Instant.now
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 
 /**
@@ -39,6 +40,9 @@ class MainActivity : AppCompatActivity() {
 
     private var interpreter: Interpreter? = null
 
+    // Use Executor for threads
+    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -50,23 +54,27 @@ class MainActivity : AppCompatActivity() {
         val bitmap = loadBitmapFromAsset()
         findViewById<ImageView>(R.id.originalImage).setImageBitmap(bitmap)
 
-        // Preprocessing: Converting bitmap into bytebuffer
-        val t0 = SystemClock.elapsedRealtime()
-        val byteBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
-        val t1 = SystemClock.elapsedRealtime()
-        Log.d("MainActivity", "Preprocessing time = ${t1 - t0}")
+        executor.execute {
+            // Preprocessing: Converting bitmap into bytebuffer
+            val t0 = SystemClock.elapsedRealtime()
+            val byteBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
+            val t1 = SystemClock.elapsedRealtime()
+            Log.d("MainActivity", "Preprocessing time = ${t1 - t0}")
 
-        // Run inference
-        val inferenceResult = runInference(byteBuffer)
-        val t2 = SystemClock.elapsedRealtime()
-        Log.d("MainActivity", "Inference time = ${t2 - t1}")
+            // Run inference
+            val inferenceResult = runInference(byteBuffer)
+            val t2 = SystemClock.elapsedRealtime()
+            Log.d("MainActivity", "Inference time = ${t2 - t1}")
 
-        // Postprocessing: Convert output byte buffer array to image
-        val image = convertOutputArrayToImage(inferenceResult)
-        val t3 = SystemClock.elapsedRealtime()
-        Log.d("MainActivity", "Postprocessing time = ${t3 - t2}")
+            // Postprocessing: Convert output byte buffer array to image
+            val image = convertOutputArrayToImage(inferenceResult)
+            val t3 = SystemClock.elapsedRealtime()
+            Log.d("MainActivity", "Postprocessing time = ${t3 - t2}")
 
-        displayResultImage(image)
+            runOnUiThread {
+                displayResultImage(image)
+            }
+        }
     }
 
     private fun displayResultImage(finalBitmap: Bitmap) {
@@ -96,7 +104,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createInterpreter() {
+        // CPU delegate by default
         val tfLiteOptions = Interpreter.Options()
+        interpreter = getInterpreter(this, TFLITE_MODEL_NAME, tfLiteOptions)
+
+        // GPU delegate
+        /*val tfLiteOptions = Interpreter.Options()
+        val gpuDelegate = GpuDelegate()
+        tfLiteOptions.addDelegate(gpuDelegate)*/
+
         interpreter = getInterpreter(this, TFLITE_MODEL_NAME, tfLiteOptions)
     }
 
@@ -217,6 +233,12 @@ class MainActivity : AppCompatActivity() {
  * 	        Off load inference running to bg thread (AsyncTask)
  * 	        Try GPu delegates
  *
- *  Step 3: To be continued...
+ *  Step 3: Off load inference running to bg thread (AsyncTask)
+ *   Time remained same but we actually off loaded UI thread stuffs to make the UI smoother
+ *
+ *  Step 4: Try GPU delegates - This model does not support GPU delegate basically due to the operators and graphs in the model
+ *
+ *  Step 5: Lets explore NNAPI delegate to use NPU possibly
+ *
  *
  */
