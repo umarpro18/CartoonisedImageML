@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.scale
 import org.tensorflow.lite.Interpreter
+import org.tensorflow.lite.gpu.GpuDelegate
 import org.tensorflow.lite.support.common.FileUtil
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -35,19 +36,23 @@ class MainActivityMobileNet : AppCompatActivity() {
         val bitmap = loadBitmapFromAsset()
         findViewById<ImageView>(R.id.originalImage).setImageBitmap(bitmap)
 
+        // Use background thread to offload ui thread stuffs
         executor.execute {
             val t0 = SystemClock.elapsedRealtime()
+            // Resize, normalize, convert to ByteBuffer using float32 (1, 224, 224, 3 rgb, 4 bytes)
             val inputBuffer = convertBitmapToByteBuffer(bitmap, 224, 224)
             val t1 = SystemClock.elapsedRealtime()
-            Log.d("MobileNet", "Preprocessing = ${t1 - t0} ms")
+            Log.d("MobileNet", "Umar Preprocessing = ${t1 - t0} ms")
 
+            // Defaulted to run in CPU
             val output = runInference(inputBuffer)
             val t2 = SystemClock.elapsedRealtime()
-            Log.d("MobileNet", "Inference = ${t2 - t1} ms")
+            Log.d("MobileNet", "Umar Inference = ${t2 - t1} ms")
 
+            // Postprocessing: Get top prediction
             val topIndex = getTopPrediction(output)
             val t3 = SystemClock.elapsedRealtime()
-            Log.d("MobileNet", "Postprocessing = ${t3 - t2} ms")
+            Log.d("MobileNet", "Umar Postprocessing = ${t3 - t2} ms")
 
             runOnUiThread {
                 findViewById<TextView>(R.id.resultText)
@@ -115,6 +120,30 @@ class MainActivityMobileNet : AppCompatActivity() {
 
     private fun createInterpreter() {
         val options = Interpreter.Options()
+
+        /**
+         *  Internal error: Failed to apply delegate: Can not open OpenCL library on this device -
+         *  failed: library "libOpenCL.so" not found Falling back to OpenGL
+         */
+        //options.addDelegate(GpuDelegate())
+
+        /**
+         * Tried it and it is actually slow compared to CPU inference time
+         * Possible cause:
+         *  The android system have to pick the appropriate hardware
+         *  Compile the model for the chosen hardware (NPU, GPU, DSP, or CPU)
+         *  Dispatch execution
+         * Basically, NNAPI → Android decides where to run
+         * Considering for the small ML model like this it can add up to what the actual CPU results showup.
+         *
+         */
+        options.setUseNNAPI(true)
+
+        /**
+         * I evaluated CPU, GPU, and NNAPI execution paths. For a small float32 MobileNet model, CPU performed best due to NNAPI overhead.
+         * This reinforced that NNAPI is most beneficial for larger or quantized models.
+         */
+
         interpreter = Interpreter(
             FileUtil.loadMappedFile(this, TFLITE_MODEL_MOBILENET),
             options
@@ -126,3 +155,15 @@ class MainActivityMobileNet : AppCompatActivity() {
     }
 
 }
+
+/**
+ * Analysis for CPU:
+ * Preprocessing = 10 ms
+ * Inference = 17 ms
+ * Postprocessing = 0 ms
+ *
+ * Use NNAPI has true:
+ * Preprocessing = 10 ms
+ * Inference = 80 ms
+ * Postprocessing = 0 ms
+ */
